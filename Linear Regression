@@ -1,0 +1,16 @@
+********************************************
+	***linear regression for depression N=3,200******
+	********************************************	
+	*changes in depression score from baseline to 24week using complete cases 3,231 
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit dep24_new i.cqr9_24 $covariates, ll(0)  //negative and significant  -1.431266 
+	margins,dydx(*) predict(e(0,.))  //negative and significant   -.4681202
+	
+	********************************************
+	***linear regression for anxiety N=3,200******
+	********************************************
+	global covariates "anxscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit anx24_new i.cqr9_24 $covariates, ll(0)  //negative and significant  -1.073324 
+	margins,dydx(*) predict(e(0,.))  //negative and significant  -.3977239 
