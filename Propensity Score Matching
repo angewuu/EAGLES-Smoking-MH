@@ -1,0 +1,75 @@
+	*****************************
+	******PSM for depression*****
+	*****************************
+	sysdir set PLUS "C:\Program Files\Stata16\ado\plus"
+	
+	*make sure order is random before psm
+	set seed 10101
+	cap drop ranorder
+	gen ranorder=runiform()
+	sort ranorder
+	
+	*match people without replacement
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	psmatch2 cqr9_24 $covariates, outcome(dep24_new)  common n(1) noreplace cal(0.05)  logit 
+	pstest $covariates, both graph
+	count if _weight !=.     //938 matched
+		
+	
+	
+	//PSM model adequacy check - Kernal density plots of treatment groups' propensity score distributions before and after matching
+	//Before matching
+	twoway (kdensity _pscore if cqr9_24==1 ) ///
+	(kdensity _pscore if cqr9_24==0 ), ///
+	legend( label(1 "Continuous abstinence 9-24 weeks") label( 2 "Control" ) subtitle ///
+	("Treatment groups' propensity score distributions before matching")) xtitle("Propensity score") ytitle("Density") graphregion(color(white))
+	graph save Graph "ps_dist_before.gph", replace
+	graph use "ps_dist_before.gph"
+	graph export "ps_dist_before.eps", as(eps) replace
+
+
+	//After matching
+	twoway (kdensity _pscore if _treated==1 & _weight==1 ) ///
+	(kdensity _pscore if _treated==0 & _weight==1 ), ///
+	legend( label(1 "Continuous abstinence 9-24 weeks") label( 2 "Control" ) subtitle ///
+	("Treatment groups' propensity score distributions after matching")) xtitle("Propensity score") ytitle("Density") graphregion(color(white))
+	graph save Graph "ps_dist_after.gph", replace
+	graph use "ps_dist_after.gph",
+	graph export "ps_dist_after.ps", as(ps) replace
+	
+	
+		
+	*Tobit using matched cohort
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	tobit dep24_new cqr9_24 $covariates if _weight!=. , ll(0) //negative and significant  -1.275413
+	margins,dydx(*) predict(e(0,.))  //negative and significant   -.3949084 
+	
+
+	*****************************
+	******PSM for anxiety*****
+	*****************************
+	*make sure order is random before psm
+	set seed 10101
+	cap drop ranorder
+	gen ranorder=runiform()
+	sort ranorder
+	
+	*match people without replacement
+	global covariates "anxscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn " //with i.treat
+	psmatch2 cqr9_24 $covariates, outcome(anx24_new)  common n(1) noreplace cal(0.05)  logit 
+	pstest $covariates, both graph
+	count if _weight !=.     //936 matched
+		
+	*Tobit using matched cohort
+	global covariates "anxscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	tobit anx24_new cqr9_24 $covariates if _weight!=. , ll(0) //negative and significant  -.8965676 
+	margins,dydx(*) predict(e(0,.))  //negative and significant  -.310448
+	
+	
+	*description 
+	su dep24_new if _weight !=. , d
+	su anx24_new if _weight !=. , d
+	tab cqr9_24 if _weight !=. , m
+	
+	oneway dep24_new cqr9_24 if _weight !=.,tab
+	oneway anx24_new cqr9_24 if _weight !=.,tab
