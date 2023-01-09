@@ -1,0 +1,119 @@
+	*******************************************
+	***Imputation for depression 1,029 missing******
+	********************************************	
+	
+	mi set mlong
+	mi misstable sum  //check variables with missing info
+	mi describe
+	mi register imputed  dep24_new   bmi_gp CVD cvsdmn 
+	mi register regular age sex race depscrBASELINE treat fndp_total cohortx psychomedication
+	mi impute chained (truncreg, ll(0)) dep24_new (regress) bmi_gp (logit) CVD (logit) cvsdmn = age i.sex i.race depscrBASELINE i.treat fndp_total i.cohortx i.psychomedication, add(20) rseed (520) 
+
+	save  "depression_imputed.dta", replace
+	
+	
+	*******************************************
+	***Linear association for depression 1,029 missing******
+	********************************************
+	
+	*Tobit regression
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	mi estimate, cmdok: tobit dep24_new  cqr9_24 $covariates, ll(0)  
+	mimrgns, dydx(*) predict(e(0,.)) 
+	
+	
+	
+	*******************************************
+	***PSM (depression) within imputation ******
+	********************************************	
+		
+	*PSM within imputed data
+	set seed 12345
+	tempvar sortorder
+	gen `sortorder' = runiform()
+	sort `sortorder'
+	
+	//create propensity score 
+	cap drop pscore treated support weight id n1 nn pdif
+	foreach j in pscore treated support weight id n1 nn pdif{
+	    gen `j' =. 
+		}
+	
+	forvalues i=1(1)20 {
+		psmatch2 cqr9_24 $covariates if _mi_m == `i', outcome(dep24_new)  common n(1) noreplace cal(0.05)  logit 
+		foreach j in pscore treated support weight id n1 nn pdif {
+		replace   `j' = _`j'  if `j' ==.			
+		}
+		}
+
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	
+	mi estimate,  esampvaryok errorok cmdok : tobit dep24_new  cqr9_24 $covariates
+	mimrgns, dydx(*) predict(e(0,.))
+
+	
+	*******************************************
+	***Imputation for anxiety 1,029 missing******
+	********************************************	
+	mi set mlong
+	mi misstable sum  //check variables with missing info
+	mi describe
+	mi register imputed  anx24_new   bmi_gp CVD cvsdmn 
+	mi register regular age sex race anxscrBASELINE treat fndp_total cohortx psychomedication
+	mi impute chained (truncreg, ll(0)) anx24_new (regress) bmi_gp (logit) CVD (logit) cvsdmn = age i.sex i.race anxscrBASELINE i.treat fndp_total i.cohortx i.psychomedication, add(20) rseed (520) 
+
+	save  "anxiety_imputed.dta", replace
+	
+	*Tobit regression
+	global covariates "anxscrBASELINE i.treat i.agegroup i.sex i.races bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	mi estimate, cmdok: tobit anx24_new  cqr9_24 $covariates, ll(0)  //negative and significant  
+	mimrgns, dydx(*) predict(e(0,.))   // negative and significant 
+	
+	
+	*******************************************
+	***anxiety PSM within imputation ******
+	********************************************	
+		
+	*PSM within imputed data
+	set seed 12345
+	tempvar sortorder
+	gen `sortorder' = runiform()
+	sort `sortorder'
+	
+	//create propensity score 
+	cap drop pscore treated support weight id n1 nn pdif
+	foreach j in pscore treated support weight id n1 nn pdif{
+	    gen `j' =. 
+		}
+	
+	forvalues i=1(1)20 {
+		psmatch2 cqr9_24 $covariates if _mi_m == `i', outcome(anx24_new)  common n(1) noreplace cal(0.05)  logit 
+		foreach j in pscore treated support weight id n1 nn pdif {
+		replace   `j' = _`j'  if `j' ==.			
+		}
+		}
+
+	global covariates "anxscrBASELINE i.treat i.agegroup i.sex i.races bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	
+	mi estimate,  esampvaryok errorok cmdok : tobit anx24_new  cqr9_24 $covariates
+	mimrgns, dydx(*) predict(e(0,.))
+	
+
+	********************************************
+	***description*************************
+	********************************************	
+	mi estimate: mean dep24_new
+	mi estimate: mean dep24_new, over(cqr9_24)
+	
+	mi estimate: mean anx24_new
+	mi estimate: mean anx24_new, over(cqr9_24)
+	
+	su dep24_new if _mi_m ==0  //_mi_m indicates the imputation number. THE value is 0 for the origincal data 
+	su anx24_new if _mi_m ==0
+	
+	su dep24_new if _mi_m !=0
+	su anx24_new if _mi_m !=0
+	
+	
+	bysort cqr9_24: su dep24_new
+	bysort cqr9_24: su anx24_new
