@@ -1,0 +1,307 @@
+	*create Smoking characteristics data
+	use "Smoking characteristics.dta", clear
+	replace pid = subinstr(pid, " ","",.)
+	cap drop pidnew
+	encode pid, gen(pidnew)
+	sort pidnew
+
+	save "Smoking characteristics.dta", replace
+	duplicates report pidnew
+	duplicates drop pidnew, force
+	sort pidnew
+	save "Smoking characteristics.dta", replace  //4,260 people
+
+
+	*create Psychotropics data
+	use "Psychotropics.dta", clear 
+	*long format to wide format
+	cap drop code
+	bysort pid : gen code=_n
+	
+	reshape wide cdfdate cmcode cdrgcopc cdrgreas sename cdrgcopt psychotropicmedication drugclass, i(pid) j(code)
+	
+	replace pid = subinstr(pid, " ","",.)
+	cap drop pidnew
+	encode pid, gen(pidnew)
+	sort pidnew
+	save "Psychotropics.dta", replace   //3,732 people
+	
+*merge smoking dataset and medication 
+
+use "C:\Dataset\HADS\Final data.dta", clear
+
+replace pid = subinstr(pid, " ","",.)
+
+cap drop pidnew
+encode pid, gen(pidnew)
+sort pidnew
+
+
+cap drop _merge
+merge 1:1 pid using "Smoking characteristics.dta"  //all matched
+count 
+
+sort pidnew
+//smoking all matched 
+
+
+
+cap drop _merge
+sort pidnew
+merge 1:1 pid using "Psychotropics.dta"
+///3,732 matched
+
+
+*save the final dataset
+save "finalaftermerge.dta", replace
+
+
+cd "C:\analyses"
+
+use "randomised_group_data.dta",clear
+
+
+log using "completecase.smcl", replace
+
+
+
+sysdir set PLUS "C:\Program Files\Stata16\ado\plus"
+
+
+************************************************
+***Part 1 Multivarable linear regression*****
+************************************************
+
+
+********************
+******covariates******
+********************
+	*age
+	tab age,m
+	
+	*age group in a 10-year band
+	cap drop agegroup
+	recode age 18/30=1 31/40=2 41/50=3 51/60=4 61/75=5, gen (agegroup)
+	label define agegroup 1"Aged 18/30" 2"Aged 31/40" 3"Aged 41/50" 4"Aged 51/60" 5"Aged 61/75", modify
+	label values agegroup agegroup
+	tab agegroup,m
+	
+	*sex
+	tab sex, m
+	
+	*race
+	tab races, m  //1 missing race, but I recode as others
+	recode races .=4
+	tab races, m
+	
+	*weight 
+	su wt,d //32 missing weight
+	
+	*height
+	su ht,d   // 4,253, 7 missing height
+	cap drop ht_meters
+	gen  ht_meters = .
+	replace ht_meters=ht/100
+	
+	*BMI
+	cap drop bmi
+	gen bmi = wt/((ht_meters)^2)
+	cap drop bmi_gp
+	gen bmi_gp=.
+	replace bmi_gp=1 if bmi<18.5 & bmi!=.
+	replace bmi_gp=2 if bmi>=18.5 & bmi<25
+	replace bmi_gp=3 if bmi>=25 & bmi<30
+	replace bmi_gp=4 if bmi>=30 & bmi!=.
+	label variable bmi_gp "BMI group"
+	label values bmi_gp bmi_gp
+	tab bmi_gp,m   //39 missing 
+	
+
+		
+	*smoking characteristics (nictone dependence)
+	tab fndp_total,m
+	
+	
+	
+	*psychatric characteristics
+	* binary psychiatric history 
+	tab cohortx, m
+	
+	*receiving psychatropic medication at enrolment
+	cap drop psychomedication
+	gen psychomedication=.
+	foreach var of varlist psychotropicmedication1-psychotropicmedication129 {
+	replace psychomedication= 0 if `var'== "NO"
+	replace psychomedication= 1 if `var'== "YES"
+	}
+	tab psychomedication,m  
+	recode psychomedication .=0 //528 missing, but we assume they are not on medication
+	tab psychomedication,m //923 YES
+	
+	
+	
+	
+	*baseline psychatric health
+	*baseline HADSB
+	su HADSB, d
+	
+	*CVD
+	tab CVD,m  //4 people missing, maybe code as unreported
+	
+	*diabetes
+	tab cvsdmn,m  //3 people missing, maybe code as unreported
+	 
+	****************************
+	*****4,260 in total*********
+	****************************
+	
+	
+	
+	*********************************************
+	***********exposure**************************
+	*********************************************
+	*1.primary exposure (not smoking from baseline to 24week)
+	tab cqr9_24,m 
+
+	*********************************************
+	***********outcome**************************
+	*********************************************
+	*HADS24 at baseline
+	tab HADSB,m
+	*HADS24 at 24week
+	tab HADS24,m // 1,224  missing
+	//histogram HADS24_new, normal  //not normally distributed 
+	*replace with data at early waves
+	cap drop HADS24_new
+	clonevar HADS24_new = HADS24 
+	replace HADS24_new = HADS23 if HADS24==.  //71 real changes made
+	replace HADS24_new = HADS22 if HADS24==. & HADS23 ==.  //12 real changes made
+	replace HADS24_new = HADS21 if HADS24==. & HADS23 ==. & HADS22 ==. //7 real changes made
+	replace HADS24_new = HADS20 if HADS24==. & HADS23 ==. & HADS22 ==. & HADS21 ==.  //105 real changes made
+	tab HADS24_new,m 
+	histogram HADS24_new,normal
+	//1,029 missing 
+	//within 3,231 with data, 1,452 scored 0.
+	
+	
+	*depression at baseline
+	tab depscrBASELINE,m
+	*depression at 24week
+	tab depscrWEEK24,m  //1,224 missing 
+	
+	*replace with data at early waves
+	cap drop dep24_new
+	clonevar dep24_new = depscrWEEK24 
+	replace dep24_new = depscrWEEK23 if dep24==.  
+	replace dep24_new = depscrWEEK22 if dep24==. & depscrWEEK23 ==. 
+	replace dep24_new = depscrWEEK21 if dep24==. & depscrWEEK23 ==. & depscrWEEK22 ==. 
+	replace dep24_new = depscrWEEK20 if dep24==. & depscrWEEK23 ==. & depscrWEEK22 ==. & depscrWEEK21 ==.  
+	tab dep24_new,m  //1,029 missing
+	histogram dep24_new,normal	 
+	
+	
+	*anxiety at baseline
+	tab anxscrBASELINE,m
+	
+	*anxiety at 24week	
+	tab anxscrWEEK24,m  //1,224 missing 
+	
+	*replace with data at early waves
+	cap drop anx24_new
+	clonevar anx24_new = anxscrWEEK24 
+	replace anx24_new = anxscrWEEK23 if anx24==.  
+	replace anx24_new = anxscrWEEK22 if anx24==. & anxscrWEEK23 ==. 
+	replace anx24_new = anxscrWEEK21 if anx24==. & anxscrWEEK23 ==. & anxscrWEEK22 ==. 
+	replace anx24_new = anxscrWEEK20 if anx24==. & anxscrWEEK23 ==. & anxscrWEEK22 ==. & anxscrWEEK21 ==.  
+	tab anx24_new,m  //1,029 missing
+	histogram anx24_new,normal	 
+
+save  "defined_randomised_group_data.dta", replace
+
+
+	*descriptive analyses
+table1, vars (cqr9_24 bin\ dep24_new contn \ depscrBASELINE contn \ anx24_new contn \ anxscrBASELINE contn\ treat bin\ agegroup cat\ sex bin\ races cat\ bmi_gp cat  /*
+			*/ \fndp_total contn\ cohortx bin\ psychomedication bin\ CVD bin\  cvsdmn bin\ ) format (%8.2f) onecol /*
+			*/ saving(descriptive.xlsx, sheet(overall, replace))
+			
+
+
+table1, vars (depscrBASELINE contn \ treat bin\ agegroup cat\ sex bin\ races cat\ bmi_gp cat  /*
+			*/ \fndp_total contn\ cohortx bin\ psychomedication bin\ CVD bin\  cvsdmn bin\ ) by(cqr9_24) format (%8.2f) onecol /*
+			*/ saving(descriptive.xlsx, sheet(subgroup, replace))
+			
+su 	dep24_new if  bmi_gp !=. & CVD!=. & cvsdmn !=.
+su 	anx24_new if  bmi_gp !=. & CVD!=. & cvsdmn !=.
+su 	dep24_new,d
+su 	anx24_new,d
+
+oneway dep24_new cqr9_24 if bmi_gp !=. & CVD!=. & cvsdmn !=.,tab
+oneway anx24_new cqr9_24 if bmi_gp !=. & CVD!=. & cvsdmn !=.,tab			
+			
+	********************************************
+	***linear regression for depression N=3,200******
+	********************************************	
+	*changes in depression score from baseline to 24week using complete cases 3,231 
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit dep24_new i.cqr9_24 $covariates, ll(0)  //negative and significant  -1.431266 
+	margins,dydx(*) predict(e(0,.))  //negative and significant   -.4681202
+	
+	********************************************
+	***linear regression for anxiety N=3,200******
+	********************************************
+	global covariates "anxscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit anx24_new i.cqr9_24 $covariates, ll(0)  //negative and significant  -1.073324 
+	margins,dydx(*) predict(e(0,.))  //negative and significant  -.3977239 
+	
+	
+	
+	***********************************
+	******IV analyses for depression******
+	***********************************
+	global covariates "depscrBASELINE i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn"  //without i.treat
+	*ivtobit
+	ivtobit dep24_new (cqr9_24 = treat) $covariates, ll(0)  //*positive* but nonsignificant  
+	*Wald test of exogeneity (corr = 0): chi2(1) = 3.10        Prob > chi2 = 0.0783
+	margins,dydx(*) predict(e(0,.))  //negative but nonsignificant  -.5042536
+	
+	***********************************
+	******IV analyses for anxiety******
+	***********************************
+	global covariates "anxscrBASELINE i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn"  //without i.treat
+	*ivtobit
+	ivtobit  anx24_new (cqr9_24 = treat) $covariates , ll(0) //positive but nonsignificant   .725552
+	*Wald test of exogeneity (corr = 0): chi2(1) = 0.54        Prob > chi2 = 0.4620
+	margins,dydx(*) predict(e(0,.))  //negative but nonsignificant   -.4167729
+	
+	
+	
+	
+	*************************************************
+	******Excluding people - sensitivety analyses*****
+	*************************************************
+	*drop people with bupropion
+	count if randtext == "Bupropion 150 mg BID"   //1,067 removed
+	drop if randtext == "Bupropion 150 mg BID"  
+
+	********************************************
+	***linear regression for depression N=2,394******
+	********************************************	
+	*changes in depression score from baseline to 24week using complete cases 3,231 
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit dep24_new i.cqr9_24 $covariates, ll(0)  //negative and significant   -1.134215
+	margins,dydx(*) predict(e(0,.))  //negative and significant   -.3726782 
+	
+	********************************************
+	***linear regression for anxiety N=2,394******
+	********************************************
+	global covariates "anxscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit anx24_new i.cqr9_24 $covariates, ll(0)  //negative and significant   -.8729633 
+	margins,dydx(*) predict(e(0,.))  //negative and significant  -.3250572
+	
+
+	
+	
