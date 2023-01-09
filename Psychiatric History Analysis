@@ -1,0 +1,34 @@
+*total 
+	*changes in depression score from baseline to 24week using complete cases 3,231 
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total i.cohortx i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit dep24_new i.cqr9_24 $covariates, ll(0)  //negative and significant  -1.431266 
+	margins,dydx(*) predict(e(0,.))  //negative and significant   -.4681202
+	
+
+	*doesn't have psychatric history 
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total  i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit dep24_new i.cqr9_24 $covariates if cohortx==0, ll(0)  //negative and significant  -1.243476
+	margins,dydx(*) predict(e(0,.))  //negative and significant   -.3172432
+	
+	*has psychatric history 
+	
+	global covariates "depscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total  i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit dep24_new i.cqr9_24 $covariates if cohortx==1, ll(0)  //negative and significant  -1.561459 
+	margins,dydx(*) predict(e(0,.))  //negative and significant  -.5991143
+	
+	*doesn't have psychatric history 
+	
+	global covariates "anxscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total  i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit anx24_new i.cqr9_24 $covariates if cohortx==0, ll(0)  //negative and significant  -1.014734 
+	margins,dydx(*) predict(e(0,.))  //negative and significant   -.2873087 
+	
+	*has psychatric history 
+	
+	global covariates "anxscrBASELINE i.treat i.agegroup i.sex i.races i.bmi_gp fndp_total  i.psychomedication i.CVD i.cvsdmn" //with i.treat
+	*tobit model for depression
+	tobit anx24_new i.cqr9_24 $covariates if cohortx==1, ll(0)  //negative and significant  -1.07542 
+	margins,dydx(*) predict(e(0,.))  //negative and significant  -.4750068
